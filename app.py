@@ -61,20 +61,24 @@ async def infer_10x_window(req: TenXWindowRequest):
 async def health():
     return {"status": "ok"}
 
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
-    if not req.images:
-        raise HTTPException(status_code=400, detail="At least one image is required")
-    # 解码 Base64 图像为 PIL Image
+    # 至少需要提供问题
+    if not req.question:
+        raise HTTPException(status_code=400, detail="Question is required")
+
     pil_images = []
-    for b64_str in req.images:
-        try:
-            img_data = base64.b64decode(b64_str)
-            img = Image.open(io.BytesIO(img_data)).convert("RGB")
-            pil_images.append(img)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid image base64: {str(e)}")
-    # 调用模型推理
+    if req.images:
+        for b64_str in req.images:
+            try:
+                img_data = base64.b64decode(b64_str)
+                img = Image.open(io.BytesIO(img_data)).convert("RGB")
+                pil_images.append(img)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid image base64: {str(e)}")
+
+    # 调用模型推理（支持空图片列表）
     result = model.infer_multiple_images(pil_images, req.question)
     return ChatResponse(
         think=result.get("think", ""),

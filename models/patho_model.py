@@ -76,9 +76,9 @@ class PathoVLModel:
 
     def infer_multiple_images(self, images: List[Image.Image], prompt: str) -> Dict[str, Any]:
         """
-        支持多张图像的推理，返回原始输出和解析后的 think/answer
+        支持多张图像（或零张）的推理，返回原始输出和解析后的 think/answer
         """
-        # 构建 content 列表：先放所有图片，最后放文本问题
+        # 构建 content 列表
         content = []
         for img in images:
             content.append({"type": "image", "image": img})
@@ -97,7 +97,13 @@ class PathoVLModel:
 
         # 处理对话模板
         text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        image_inputs, _ = process_vision_info(messages)
+
+        # 如果有图像，才需要提取图像输入；否则 image_inputs 为 None
+        if images:
+            image_inputs, _ = process_vision_info(messages)
+        else:
+            image_inputs = None
+
         inputs = self.processor(
             text=[text],
             images=image_inputs,
