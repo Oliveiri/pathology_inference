@@ -1,4 +1,7 @@
 import logging
+import base64
+import io
+from PIL import Image
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List
@@ -33,6 +36,15 @@ class TenXWindowRequest(BaseModel):
 class TenXWindowResponse(BaseModel):
     results: List[dict]
 
+class ChatRequest(BaseModel):
+    images: List[str]   # Base64 编码的图片列表（不包含 data:image/... 前缀，仅纯 base64）
+    question: str
+
+class ChatResponse(BaseModel):
+    think: str
+    answer: str
+    raw_output: str
+
 @app.post("/infer/10x_window", response_model=TenXWindowResponse)
 async def infer_10x_window(req: TenXWindowRequest):
     results = []
@@ -48,6 +60,27 @@ async def infer_10x_window(req: TenXWindowRequest):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(req: ChatRequest):
+    if not req.images:
+        raise HTTPException(status_code=400, detail="At least one image is required")
+    # 解码 Base64 图像为 PIL Image
+    pil_images = []
+    for b64_str in req.images:
+        try:
+            img_data = base64.b64decode(b64_str)
+            img = Image.open(io.BytesIO(img_data)).convert("RGB")
+            pil_images.append(img)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid image base64: {str(e)}")
+    # 调用模型推理
+    result = model.infer_multiple_images(pil_images, req.question)
+    return ChatResponse(
+        think=result.get("think", ""),
+        answer=result.get("answer", ""),
+        raw_output=result.get("raw_output", "")
+    )
 
 if __name__ == "__main__":
     import uvicorn

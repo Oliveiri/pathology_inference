@@ -2,7 +2,7 @@ import torch
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoProcessor
 from qwen_vl_utils import process_vision_info
 from PIL import Image
-from typing import Dict, Any
+from typing import Dict, Any, List
 import json
 import logging
 
@@ -73,3 +73,58 @@ class PathoVLModel:
                 return {"error": "No JSON found in answer", "raw_output": output}
         except json.JSONDecodeError as e:
             return {"error": f"JSON parse error: {e}", "raw_output": output}
+
+    def infer_multiple_images(self, images: List[Image.Image], prompt: str) -> Dict[str, Any]:
+        """
+        支持多张图像的推理，返回原始输出和解析后的 think/answer
+        """
+        # 构建 content 列表：先放所有图片，最后放文本问题
+        content = []
+        for img in images:
+            content.append({"type": "image", "image": img})
+        content.append({"type": "text", "text": prompt})
+
+        messages = [
+            {
+                "role": "system",
+                "content": "You are a pathology expert, your task is to answer question step by step. Use the following format:\n<think> Your step-by-step reasoning </think>\n<answer> Your final answer </answer>"
+            },
+            {
+                "role": "user",
+                "content": content
+            }
+        ]
+
+        # 处理对话模板
+        text = self.processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        image_inputs, _ = process_vision_info(messages)
+        inputs = self.processor(
+            text=[text],
+            images=image_inputs,
+            padding=True,
+            return_tensors="pt"
+        ).to(self.device)
+
+        with torch.no_grad():
+            generated_ids = self.model.generate(
+                **inputs,
+                max_new_tokens=2048,
+                do_sample=False,
+                temperature=0.0
+            )
+        output = self.processor.decode(generated_ids[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+
+        # 提取 <think> 和 <answer> 内容
+        think_start = output.find('<think>')
+        think_end = output.find('</think>')
+        answer_start = output.find('<answer>')
+        answer_end = output.find('</answer>')
+        think = output[think_start + len('<think>'):think_end].strip() if think_start != -1 and think_end != -1 else ""
+        answer = output[
+                 answer_start + len('<answer>'):answer_end].strip() if answer_start != -1 and answer_end != -1 else ""
+
+        return {
+            "raw_output": output,
+            "think": think,
+            "answer": answer
+        }
