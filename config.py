@@ -1,6 +1,6 @@
 import os
 
-MODEL_PATH = os.getenv("MODEL_PATH", "/path/to/your/qwen2.5-vl-model")
+MODEL_PATH = os.getenv("MODEL_PATH", "/data/models")
 DEVICE = "cuda"
 TILE_SIZE = 256
 WINDOW_TILE_SIZE = 4   # 4x4 窗口
