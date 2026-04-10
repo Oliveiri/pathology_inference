@@ -78,21 +78,28 @@ class PathoVLModel:
         """
         支持多张图像（或零张）的推理，返回原始输出和解析后的 think/answer
         """
-        # 构建 content 列表
+        # 根据是否有图像选择不同的 system prompt
+        if not images:
+            system_prompt = (
+                "You are a pathology expert. Answer the user's question based on your medical knowledge. "
+                "Do not refer to any image or visual content, because no image is provided. "
+                "Use the following format:\n<think> Your step-by-step reasoning </think>\n<answer> Your final answer </answer>"
+            )
+        else:
+            system_prompt = (
+                "You are a pathology expert, your task is to answer question step by step. "
+                "Use the following format:\n<think> Your step-by-step reasoning </think>\n<answer> Your final answer </answer>"
+            )
+
+        # 构建 content
         content = []
         for img in images:
             content.append({"type": "image", "image": img})
         content.append({"type": "text", "text": prompt})
 
         messages = [
-            {
-                "role": "system",
-                "content": "You are a pathology expert, your task is to answer question step by step. Use the following format:\n<think> Your step-by-step reasoning </think>\n<answer> Your final answer </answer>"
-            },
-            {
-                "role": "user",
-                "content": content
-            }
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content}
         ]
 
         # 处理对话模板
