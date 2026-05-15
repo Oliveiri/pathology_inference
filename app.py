@@ -9,6 +9,14 @@ from config import MODEL_PATH, HOST, PORT
 from models.patho_model import PathoVLModel
 from services.tenx_service import process_window
 
+import torch
+# 核心修复：禁用cuDNN，解决Qwen2.5-VL视觉卷积兼容bug
+#torch.backends.cudnn.enabled = False
+# 清空缓存
+torch.cuda.empty_cache()
+# 重启服务后，传图片立刻正常
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
